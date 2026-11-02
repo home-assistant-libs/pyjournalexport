@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  pull_request:
+    paths: [.github/workflows/release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: ${{ matrix.libc }} ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64, armv7]
+        libc: [manylinux, musllinux]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: ${{ matrix.libc == 'musllinux' && 'musllinux_1_2' || 'auto' }}
+          sccache: ${{ github.event_name != 'release' }}
+      - name: Test wheel
+        if: matrix.target == 'x86_64'
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/io" -w /io \
+            ${{ matrix.libc == 'musllinux' && 'python:3.14-alpine' || 'python:3.14-slim' }} sh -ec '
+            pip install --quiet pytest
+            pip install --quiet pyjournalexport --no-index --find-links dist
+            pytest -q
+          '
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.libc }}-${{ matrix.target }}
+          path: dist
+
+  macos:
+    name: macos ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: aarch64
+          - runner: macos-15-intel
+            target: x86_64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          sccache: ${{ github.event_name != 'release' }}
+      - name: Test wheel
+        run: |
+          pip install --quiet pytest
+          pip install --quiet pyjournalexport --no-index --find-links dist
+          pytest -q
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v6
+        with:
+          name: sdist
+          path: dist
+
+  publish:
+    name: Publish to PyPI
+    if: github.event_name == 'release'
+    needs: [linux, macos, sdist]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,21 @@
+[package]
+name = "pyjournalexport"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Incremental parser for the systemd journal export format"
+license = "Apache-2.0"
+repository = "https://github.com/home-assistant-libs/pyjournalexport"
+publish = false
+
+[lib]
+name = "_parser"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+memchr = "2"
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py312"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
