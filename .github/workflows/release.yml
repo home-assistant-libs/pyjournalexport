@@ -37,7 +37,7 @@ jobs:
             pip install --quiet pyjournalexport --no-index --find-links dist
             pytest -q
           '
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.libc }}-${{ matrix.target }}
           path: dist
@@ -69,7 +69,7 @@ jobs:
           pip install --quiet pytest
           pip install --quiet pyjournalexport --no-index --find-links dist
           pytest -q
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-${{ matrix.target }}
           path: dist
@@ -83,7 +83,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist
