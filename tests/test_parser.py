@@ -92,6 +92,19 @@ def test_repeated_field_last_wins(data: bytes) -> None:
     assert parser.feed(data) == [{"MESSAGE": "last"}]
 
 
+def test_binary_field_split_after_completed_entry() -> None:
+    """A binary field split across feeds is parsed after buffer compaction."""
+    parser = JournalExportParser(["MESSAGE"])
+    payload = b"a\n\nbcdefghijk"
+    first = (
+        b"MESSAGE=" + b"x" * 40 + b"\n\n"
+        b"MESSAGE\n" + len(payload).to_bytes(8, "little") + payload[:6]
+    )
+    assert parser.feed(first) == [{"MESSAGE": "x" * 40}]
+    assert parser.feed(payload[6:] + b"\n\n") == [{"MESSAGE": payload.decode()}]
+    assert not parser.close()
+
+
 def test_large_binary_field_in_small_feeds() -> None:
     """A binary field spanning many feeds is parsed."""
     parser = JournalExportParser(["MESSAGE"])

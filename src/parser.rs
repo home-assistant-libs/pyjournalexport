@@ -81,6 +81,7 @@ impl Parser {
         // the copying amortized linear.
         if self.pos > self.buf.len() / 2 {
             self.buf.drain(..self.pos);
+            self.need = self.need.saturating_sub(self.pos);
             self.pos = 0;
         }
         Ok(entries)
@@ -252,6 +253,29 @@ mod tests {
             assert!(parser.feed(data).unwrap().is_empty());
             assert_eq!(parser.close(), Err(ParseError::TruncatedBinaryField));
         }
+    }
+
+    #[test]
+    fn binary_field_split_after_completed_entry() {
+        let payload = b"a\n\nbcdefghijk";
+        let mut first = b"MESSAGE=".to_vec();
+        first.extend_from_slice(&[b'x'; 40]);
+        first.extend_from_slice(b"\n\nMESSAGE\n");
+        first.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        first.extend_from_slice(&payload[..6]);
+        let mut second = payload[6..].to_vec();
+        second.extend_from_slice(b"\n\n");
+
+        let mut parser = Parser::new(["MESSAGE"]);
+        assert_eq!(
+            parser.feed(&first).unwrap(),
+            vec![vec![(0, "x".repeat(40))]]
+        );
+        assert_eq!(
+            parser.feed(&second).unwrap(),
+            vec![vec![(0, String::from_utf8_lossy(payload).into_owned())]]
+        );
+        assert!(parser.close().unwrap().is_empty());
     }
 
     #[test]
