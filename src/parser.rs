@@ -95,7 +95,13 @@ impl Parser {
         if self.pos >= self.buf.len() && self.entry.is_empty() {
             return Ok(Vec::new());
         }
-        self.feed(b"\n\n")
+        let entries = self.feed(b"\n\n")?;
+        // Simple fields always end at the terminator, so leftover data is a
+        // binary field header that was cut off.
+        if self.pos < self.buf.len() {
+            return Err(ParseError::TruncatedBinaryField);
+        }
+        Ok(entries)
     }
 
     fn step(&mut self) -> Result<Step, ParseError> {
@@ -245,6 +251,7 @@ mod tests {
     #[test]
     fn truncated_binary_field() {
         for data in [
+            &b"MESSAGE"[..],
             &b"MESSAGE\n\x0d\x00\x00\x00"[..],
             &b"MESSAGE\n\x0d\x00\x00\x00\x00\x00\x00\x00Hello"[..],
             &b"MESSAGE\n\x05\x00\x00\x00\x00\x00\x00\x00Hello"[..],

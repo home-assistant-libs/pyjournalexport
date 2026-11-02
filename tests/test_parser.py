@@ -61,6 +61,7 @@ def test_malformed_binary_separator() -> None:
 @pytest.mark.parametrize(
     "data",
     [
+        pytest.param(b"MESSAGE", id="in-name"),
         pytest.param(b"MESSAGE\n\x0d\x00\x00\x00", id="in-size"),
         pytest.param(b"MESSAGE\n\x0d\x00\x00\x00\x00\x00\x00\x00Hello", id="in-data"),
         pytest.param(
