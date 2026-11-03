@@ -11,6 +11,23 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Check version matches tag
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          if [ "v$version" != "$TAG" ]; then
+            echo "Cargo.toml version $version does not match tag $TAG"
+            exit 1
+          fi
+
   linux:
     name: ${{ matrix.libc }} ${{ matrix.target }}
     runs-on: ubuntu-latest
@@ -95,7 +112,7 @@ jobs:
   publish:
     name: Publish to PyPI
     if: github.event_name == 'release'
-    needs: [linux, macos, sdist]
+    needs: [version, linux, macos, sdist]
     runs-on: ubuntu-latest
     environment: release
     permissions:
