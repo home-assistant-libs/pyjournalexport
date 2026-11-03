@@ -52,10 +52,14 @@ def test_non_utf8_replaced() -> None:
 def test_malformed_binary_separator() -> None:
     """Binary data not followed by a newline raises."""
     parser = JournalExportParser(["MESSAGE"])
-    with pytest.raises(MalformedBinaryEntryError):
+    with pytest.raises(MalformedBinaryEntryError) as excinfo:
         parser.feed(
             b"ID=1\nMESSAGE\n\x0d\x00\x00\x00\x00\x00\x00\x00Hello, world!AFTER=after\n\n"
         )
+    assert (
+        str(excinfo.value)
+        == "Binary field MESSAGE of 13 bytes is not followed by a newline, found 0x41"
+    )
 
 
 @pytest.mark.parametrize(
