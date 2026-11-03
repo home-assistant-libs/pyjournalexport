@@ -39,6 +39,8 @@ pub struct Parser {
     entry: Entry,
     /// Buffer length a binary field needs before parsing can continue.
     need: usize,
+    /// Offset from `pos` up to which the current line holds no newline.
+    scan: usize,
 }
 
 enum Step {
@@ -58,6 +60,7 @@ impl Parser {
             pos: 0,
             entry: Vec::new(),
             need: 0,
+            scan: 0,
         }
     }
 
@@ -106,10 +109,12 @@ impl Parser {
 
     fn step(&mut self) -> Result<Step, ParseError> {
         let buf = &self.buf[self.pos..];
-        let Some(line_end) = memchr(b'\n', buf) else {
+        let Some(line_end) = memchr(b'\n', &buf[self.scan..]).map(|i| i + self.scan) else {
+            self.scan = buf.len();
             self.need = 0;
             return Ok(Step::Incomplete);
         };
+        self.scan = 0;
         if line_end == 0 {
             self.pos += 1;
             return Ok(Step::EntryEnd);
@@ -283,6 +288,19 @@ mod tests {
             vec![vec![(0, String::from_utf8_lossy(payload).into_owned())]]
         );
         assert!(parser.close().unwrap().is_empty());
+    }
+
+    #[test]
+    fn long_text_field_in_small_feeds() {
+        let mut parser = Parser::new(["MESSAGE"]);
+        assert!(parser.feed(b"MESSAGE=").unwrap().is_empty());
+        for _ in 0..10_000 {
+            assert!(parser.feed(&[b'x'; 1000]).unwrap().is_empty());
+        }
+        assert_eq!(
+            parser.feed(b"\n\n").unwrap(),
+            vec![vec![(0, "x".repeat(10_000_000))]]
+        );
     }
 
     #[test]
