@@ -118,3 +118,12 @@ def test_large_binary_field_in_small_feeds() -> None:
         entries += parser.feed(data[i : i + 4096])
     assert entries == [{"MESSAGE": payload.decode()}]
     assert parser.feed(b"MESSAGE=next\n\n") == [{"MESSAGE": "next"}]
+
+
+def test_long_text_field_in_small_feeds() -> None:
+    """A text field spanning many feeds is parsed without rescanning."""
+    parser = JournalExportParser(["MESSAGE"])
+    assert parser.feed(b"MESSAGE=") == []
+    for _ in range(10_000):
+        assert parser.feed(b"x" * 1000) == []
+    assert parser.feed(b"\n\n") == [{"MESSAGE": "x" * 10_000_000}]
