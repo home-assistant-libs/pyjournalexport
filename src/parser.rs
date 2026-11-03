@@ -13,7 +13,7 @@ pub type Entry = Vec<(usize, String)>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     /// Binary field data was not followed by a newline.
-    MalformedBinaryEntry(String),
+    MalformedBinaryEntry { field: String, size: u64, found: u8 },
     /// The stream ended inside a binary field.
     TruncatedBinaryField,
 }
@@ -21,7 +21,10 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MalformedBinaryEntry(data) => write!(f, "Failed parsing binary entry {data}"),
+            Self::MalformedBinaryEntry { field, size, found } => write!(
+                f,
+                "Binary field {field} of {size} bytes is not followed by a newline, found 0x{found:02x}"
+            ),
             Self::TruncatedBinaryField => write!(f, "Stream ended inside a binary field"),
         }
     }
@@ -132,9 +135,11 @@ impl Parser {
                     return Ok(Step::Incomplete);
                 }
                 if buf[data_end] != b'\n' {
-                    return Err(ParseError::MalformedBinaryEntry(
-                        String::from_utf8_lossy(&buf[data_start..=data_end]).into_owned(),
-                    ));
+                    return Err(ParseError::MalformedBinaryEntry {
+                        field: String::from_utf8_lossy(line).into_owned(),
+                        size,
+                        found: buf[data_end],
+                    });
                 }
                 (line, data_start, data_end)
             }
@@ -244,7 +249,11 @@ mod tests {
         let data = b"ID=1\nMESSAGE\n\x0d\x00\x00\x00\x00\x00\x00\x00Hello, world!AFTER=after\n\n";
         assert!(matches!(
             parse_all(&["MESSAGE"], data, 1024),
-            Err(ParseError::MalformedBinaryEntry(_))
+            Err(ParseError::MalformedBinaryEntry {
+                field,
+                size: 13,
+                found: b'A'
+            }) if field == "MESSAGE"
         ));
     }
 
